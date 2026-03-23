@@ -1,6 +1,7 @@
 package smarthomebackend.smarthomebackend.mqtt;
 
 import org.eclipse.paho.client.mqttv3.*;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import smarthomebackend.smarthomebackend.service.SmartHomeService;
 
@@ -10,22 +11,34 @@ public class MqttMotionSubscriber implements MqttCallback {
     private final MqttClient client;
     private final SmartHomeService service;
 
-    public MqttMotionSubscriber(SmartHomeService service) throws MqttException {
+    public MqttMotionSubscriber(
+            SmartHomeService service,
+            @Value("${mqtt.host}") String mqttHost,
+            @Value("${mqtt.port}") int mqttPort,
+            @Value("${mqtt.username:}") String mqttUsername,
+            @Value("${mqtt.password:}") String mqttPassword
+    ) throws MqttException {
+
         this.service = service;
 
         this.client = new MqttClient(
-                "tcp://192.168.0.191:1883",
+                "tcp://" + mqttHost + ":" + mqttPort,
                 "backendMotionSubscriber-" + MqttClient.generateClientId()
         );
 
         MqttConnectOptions options = new MqttConnectOptions();
         options.setCleanSession(true);
 
+        if (!mqttUsername.isBlank()) {
+            options.setUserName(mqttUsername);
+        }
+        if (!mqttPassword.isBlank()) {
+            options.setPassword(mqttPassword.toCharArray());
+        }
+
         client.setCallback(this);
         client.connect(options);
-
         client.subscribe("home/auto/motion", 1);
-        System.out.println("✅ MQTT Motion Subscriber Connected + Subscribed: home/auto/motion");
     }
 
     @Override
@@ -36,15 +49,10 @@ public class MqttMotionSubscriber implements MqttCallback {
     @Override
     public void messageArrived(String topic, MqttMessage message) {
         String payload = new String(message.getPayload()).trim().toUpperCase();
-        System.out.println("📥 MOTION MQTT | Topic: " + topic + " | Payload: " + payload);
-
-        // KELLER_ON, KELLER_OFF, STORE_ON, STORE_OFF
         service.applyMotionPayload(payload);
     }
 
     @Override
     public void deliveryComplete(IMqttDeliveryToken token) {
-        // not used (subscriber)
     }
 }
-

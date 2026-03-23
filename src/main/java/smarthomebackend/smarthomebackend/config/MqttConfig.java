@@ -1,6 +1,7 @@
 package smarthomebackend.smarthomebackend.config;
 
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.integration.annotation.ServiceActivator;
@@ -12,14 +13,31 @@ import org.springframework.messaging.MessageChannel;
 @Configuration
 public class MqttConfig {
 
-    // -------------------------
-    // MQTT connection settings
-    // -------------------------
+    @Value("${mqtt.host}")
+    private String mqttHost;
+
+    @Value("${mqtt.port}")
+    private int mqttPort;
+
+    @Value("${mqtt.username:}")
+    private String mqttUsername;
+
+    @Value("${mqtt.password:}")
+    private String mqttPassword;
+
     @Bean
     public MqttConnectOptions mqttConnectOptions() {
         MqttConnectOptions options = new MqttConnectOptions();
-        options.setServerURIs(new String[]{"tcp://192.168.0.191:1883"});
+        options.setServerURIs(new String[]{"tcp://" + mqttHost + ":" + mqttPort});
         options.setCleanSession(true);
+
+        if (!mqttUsername.isBlank()) {
+            options.setUserName(mqttUsername);
+        }
+        if (!mqttPassword.isBlank()) {
+            options.setPassword(mqttPassword.toCharArray());
+        }
+
         return options;
     }
 
@@ -30,9 +48,6 @@ public class MqttConfig {
         return factory;
     }
 
-    // -------------------------
-    // Outbound channel (backend → MQTT → M5Stack)
-    // -------------------------
     @Bean
     public MessageChannel mqttOutboundChannel() {
         return new DirectChannel();
@@ -41,7 +56,6 @@ public class MqttConfig {
     @Bean
     @ServiceActivator(inputChannel = "mqttOutboundChannel")
     public MqttPahoMessageHandler mqttOutbound() {
-
         MqttPahoMessageHandler handler =
                 new MqttPahoMessageHandler("backendPublisher", mqttClientFactory());
         handler.setAsync(true);
